@@ -65,7 +65,12 @@ export function FollowUpManagement() {
 
   const currentList = categorized[bucket];
 
-  const { register, handleSubmit, reset } = useForm<FollowUpFormValues>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FollowUpFormValues>({
     resolver: zodResolver(followUpFormSchema) as never,
   });
 
@@ -94,6 +99,8 @@ export function FollowUpManagement() {
       notify('Follow-up completed', `${completingItem.customerName} marked done.`);
       setCompletingItem(null);
       setOutcomeNotes('');
+    } catch (err) {
+      notify('Update failed', err instanceof Error ? err.message : 'Unable to complete follow-up.', 'error');
     } finally {
       setSaving(false);
     }
@@ -103,10 +110,17 @@ export function FollowUpManagement() {
     if (!reassignItem || !reassignEmpId) return;
     const emp = employees.find((e) => e.id === reassignEmpId);
     if (!emp) return;
-    await reassignFollowUp(actor, reassignItem, emp);
-    notify('Follow-up reassigned', `Assigned to ${emp.fullName}.`);
-    setReassignItem(null);
-    setReassignEmpId('');
+    setSaving(true);
+    try {
+      await reassignFollowUp(actor, reassignItem, emp);
+      notify('Follow-up reassigned', `Assigned to ${emp.fullName}.`);
+      setReassignItem(null);
+      setReassignEmpId('');
+    } catch (err) {
+      notify('Reassign failed', err instanceof Error ? err.message : 'Unable to reassign follow-up.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -250,6 +264,7 @@ export function FollowUpManagement() {
                   </option>
                 ))}
             </select>
+            {errors.leadId && <p className="text-xs text-rose-600 mt-1">{errors.leadId.message}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Assign Employee *</label>
@@ -263,10 +278,12 @@ export function FollowUpManagement() {
                   </option>
                 ))}
             </select>
+            {errors.employeeId && <p className="text-xs text-rose-600 mt-1">{errors.employeeId.message}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Date &amp; Time *</label>
             <input type="datetime-local" {...register('scheduledAt')} className="crm-input" />
+            {errors.scheduledAt && <p className="text-xs text-rose-600 mt-1">{errors.scheduledAt.message}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Notes</label>

@@ -23,7 +23,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { useAuth } from '../../context/AuthContext';
 import { useCrmData } from '../../context/CrmDataContext';
 import { createFollowUp, recordCallLog, scoreLeadsWithAI, updateLead } from '../../services/crmService';
-import { resolveEffectiveLeadScore, type ComputedLeadScore } from '../../lib/leadScoring';
+import { computeBaselineLeadScore, resolveEffectiveLeadScore, type ComputedLeadScore } from '../../lib/leadScoring';
 import { formatCompactCurrency, formatCurrency, formatDateTime, formatDuration, getDateKey, getTodayKey } from '../../lib/utils';
 import {
   CALL_STATUSES,
@@ -199,6 +199,7 @@ export function StaffPortal() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [leadStatusEdit, setLeadStatusEdit] = useState<LeadStatus>('Contacted');
   const [leadRemarksEdit, setLeadRemarksEdit] = useState('');
+  const [leadSaving, setLeadSaving] = useState(false);
 
   // Call Logger modal/state
   const [quickCallLead, setQuickCallLead] = useState<Lead | null>(null);
@@ -213,6 +214,7 @@ export function StaffPortal() {
   const [fupLead, setFupLead] = useState<Lead | null>(null);
   const [fupTime, setFupTime] = useState('');
   const [fupNotes, setFupNotes] = useState('');
+  const [fupSaving, setFupSaving] = useState(false);
 
   const leadScoreMap = useMemo(() => {
     const map = new Map<string, ComputedLeadScore>();
@@ -266,13 +268,39 @@ export function StaffPortal() {
 
   const handleSaveLeadUpdate = async () => {
     if (!activeSelectedLead) return;
-    await updateLead(actor, activeSelectedLead.id, {
-      status: leadStatusEdit,
-      remarks: leadRemarksEdit,
-      leadCode: activeSelectedLead.leadCode,
-    });
-    notify('Lead updated', `${activeSelectedLead.customerName} status set to ${leadStatusEdit}.`);
-    setSelectedLead({ ...activeSelectedLead, status: leadStatusEdit, remarks: leadRemarksEdit });
+    setLeadSaving(true);
+    try {
+      const leadCalls = myCalls.filter((c) => c.leadId === activeSelectedLead.id);
+      const leadFups = myFollowUps.filter((f) => f.leadId === activeSelectedLead.id);
+      const leadDocs = myDocuments.filter((d) => d.leadId === activeSelectedLead.id);
+      const updatedScore = computeBaselineLeadScore(
+        { ...activeSelectedLead, status: leadStatusEdit },
+        leadCalls,
+        leadFups,
+        leadDocs
+      );
+      await updateLead(actor, activeSelectedLead.id, {
+        status: leadStatusEdit,
+        remarks: leadRemarksEdit,
+        leadScore: updatedScore.leadScore,
+        scoreTier: updatedScore.scoreTier,
+        scoreSummary: updatedScore.scoreSummary,
+        scoreFactors: updatedScore.scoreFactors,
+        scoredAt: new Date().toISOString(),
+        scoreModel: updatedScore.scoreModel,
+      });
+      notify('Lead updated', `${activeSelectedLead.customerName} status set to ${leadStatusEdit}.`);
+      setSelectedLead({
+        ...activeSelectedLead,
+        status: leadStatusEdit,
+        remarks: leadRemarksEdit,
+        ...updatedScore,
+      });
+    } catch (err) {
+      notify('Unable to update lead', err instanceof Error ? err.message : 'Please try again.', 'error');
+    } finally {
+      setLeadSaving(false);
+    }
   };
 
   const handleLogCall = async (targetLead: Lead | null) => {
@@ -302,11 +330,18 @@ export function StaffPortal() {
 
   const handleScheduleFollowUp = async () => {
     if (!fupLead || !fupTime) return;
-    await createFollowUp(actor, fupLead, activeEmployee, fupTime, fupNotes);
-    notify('Follow-up scheduled', `Callback set for ${fupLead.customerName}.`);
-    setFupLead(null);
-    setFupTime('');
-    setFupNotes('');
+    setFupSaving(true);
+    try {
+      await createFollowUp(actor, fupLead, activeEmployee, fupTime, fupNotes);
+      notify('Follow-up scheduled', `Callback set for ${fupLead.customerName}.`);
+      setFupLead(null);
+      setFupTime('');
+      setFupNotes('');
+    } catch (err) {
+      notify('Follow-up failed', err instanceof Error ? err.message : 'Unable to schedule follow-up.', 'error');
+    } finally {
+      setFupSaving(false);
+    }
   };
 
   return (
@@ -977,10 +1012,11 @@ export function StaffPortal() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  disabled={leadSaving}
                   onClick={handleSaveLeadUpdate}
                   className="crm-btn-primary"
                 >
-                  Save Status &amp; Remarks
+                  {leadSaving ? 'Saving...' : 'Save Status & Remarks'}
                 </button>
                 <button
                   type="button"
@@ -1118,11 +1154,11 @@ export function StaffPortal() {
             </button>
             <button
               type="button"
-              disabled={!fupTime}
+              disabled={!fupTime || fupSaving}
               onClick={handleScheduleFollowUp}
               className="crm-btn-primary"
             >
-              Schedule
+              {fupSaving ? 'Scheduling...' : 'Schedule'}
             </button>
           </div>
         </div>

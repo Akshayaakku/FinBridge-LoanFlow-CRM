@@ -53,6 +53,7 @@ import {
   archiveLead,
   assignLeadsToEmployee,
   completeFollowUp,
+  createEmployee,
   createFollowUp,
   createLead,
   createLoanApplication,
@@ -714,8 +715,8 @@ function MobileLeads({
       customerName: '',
       phone: '',
       email: '',
-      city: '',
-      state: '',
+      city: 'Mumbai',
+      state: 'Maharashtra',
       employmentType: 'Salaried',
       monthlyIncome: 50000,
       requiredLoanAmount: 500000,
@@ -759,7 +760,19 @@ function MobileLeads({
         await updateLead(actor, editingLead.id, values, employees);
         notify('Lead updated', `${values.customerName} saved.`);
       } else {
-        await createLead(actor, values, employees, leads, settings.duplicateRule);
+        await createLead(
+          actor,
+          {
+            ...values,
+            email: values.email?.trim() || undefined,
+            preferredBank: values.preferredBank || undefined,
+            assignedEmployeeId: values.assignedEmployeeId || undefined,
+            remarks: values.remarks?.trim() || undefined,
+          },
+          employees,
+          leads,
+          settings.duplicateRule
+        );
         notify('Lead created', `${values.customerName} added to pipeline.`);
       }
       setFormOpen(false);
@@ -1053,20 +1066,24 @@ function MobileLeads({
             <div>
               <label className="block font-medium text-slate-700 mb-1">Phone *</label>
               <input {...register('phone')} className="w-full min-h-[42px] px-3 border border-slate-200 rounded-xl text-sm" />
+              {errors.phone && <p className="text-rose-600 mt-1">{errors.phone.message}</p>}
             </div>
             <div>
               <label className="block font-medium text-slate-700 mb-1">Email</label>
               <input {...register('email')} className="w-full min-h-[42px] px-3 border border-slate-200 rounded-xl text-sm" />
+              {errors.email && <p className="text-rose-600 mt-1">{errors.email.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="block font-medium text-slate-700 mb-1">City *</label>
               <input {...register('city')} className="w-full min-h-[42px] px-3 border border-slate-200 rounded-xl text-sm" />
+              {errors.city && <p className="text-rose-600 mt-1">{errors.city.message}</p>}
             </div>
             <div>
               <label className="block font-medium text-slate-700 mb-1">State *</label>
               <input {...register('state')} className="w-full min-h-[42px] px-3 border border-slate-200 rounded-xl text-sm" />
+              {errors.state && <p className="text-rose-600 mt-1">{errors.state.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
@@ -1424,7 +1441,6 @@ function MobileEmployees({
         await updateEmployee(actor, editing.id, values);
         notify('Employee updated', values.fullName);
       } else {
-        const { createEmployee } = await import('../../services/crmService');
         await createEmployee(actor, values);
         notify('Employee added', values.fullName);
       }
@@ -1659,14 +1675,22 @@ function MobileCalls({
     [callLogs, statusFilter]
   );
 
-  const { register, handleSubmit, reset } = useForm<CallFormValues>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CallFormValues>({
     resolver: zodResolver(callLogFormSchema) as never,
     defaultValues: { status: 'Connected', durationSeconds: 120 },
   });
 
   const onSubmit = async (values: CallFormValues) => {
     const lead = leads.find((l) => l.id === values.leadId);
-    const emp = employees.find((e) => e.id === lead?.assignedEmployeeId) || employees[0];
+    const emp =
+      employees.find((e) => e.id === lead?.assignedEmployeeId) ||
+      employees.find((e) => e.email.toLowerCase() === actor.email.toLowerCase()) ||
+      employees[0];
     if (!lead || !emp) return;
     setSaving(true);
     try {
@@ -1753,6 +1777,7 @@ function MobileCalls({
                 <option key={l.id} value={l.id}>{l.customerName} ({l.leadCode})</option>
               ))}
             </select>
+            {errors.leadId && <p className="text-rose-600 mt-1">{errors.leadId.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div>
@@ -1823,6 +1848,7 @@ function MobileFollowUps({
         completed.push(f);
         return;
       }
+      if (f.status === 'cancelled') return;
       const key = getDateKey(f.scheduledAt);
       const ts = new Date(f.scheduledAt).getTime();
       if (key === todayKey) today.push(f);
@@ -1833,7 +1859,12 @@ function MobileFollowUps({
   }, [followUps, todayKey, nowMs]);
 
   const activeList = grouped[bucket];
-  const { register, handleSubmit, reset } = useForm<FollowUpFormValues>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FollowUpFormValues>({
     resolver: zodResolver(followUpFormSchema) as never,
   });
 
@@ -1947,6 +1978,7 @@ function MobileFollowUps({
                 <option key={l.id} value={l.id}>{l.customerName} ({l.leadCode})</option>
               ))}
             </select>
+            {errors.leadId && <p className="text-rose-600 mt-1">{errors.leadId.message}</p>}
           </div>
           <div>
             <label className="block font-medium text-slate-700 mb-1">Assign Staff *</label>
@@ -1956,10 +1988,12 @@ function MobileFollowUps({
                 <option key={e.id} value={e.id}>{e.fullName}</option>
               ))}
             </select>
+            {errors.employeeId && <p className="text-rose-600 mt-1">{errors.employeeId.message}</p>}
           </div>
           <div>
             <label className="block font-medium text-slate-700 mb-1">Date & Time *</label>
             <input type="datetime-local" {...register('scheduledAt')} className="w-full min-h-[44px] px-3 border border-slate-200 rounded-xl text-sm" />
+            {errors.scheduledAt && <p className="text-rose-600 mt-1">{errors.scheduledAt.message}</p>}
           </div>
           <div>
             <label className="block font-medium text-slate-700 mb-1">Notes</label>
@@ -1990,6 +2024,8 @@ function MobileFollowUps({
                 await completeFollowUp(actor, completeTarget, outcomeNotes || 'Completed on call.');
                 notify('Follow-up completed', completeTarget.customerName);
                 setCompleteTarget(null);
+              } catch (err) {
+                notify('Completion failed', err instanceof Error ? err.message : 'Unable to save.', 'error');
               } finally {
                 setSaving(false);
               }
@@ -2023,6 +2059,8 @@ function MobileFollowUps({
                 await reassignFollowUp(actor, reassignTarget, emp);
                 notify('Reassigned', `Assigned to ${emp.fullName}`);
                 setReassignTarget(null);
+              } catch (err) {
+                notify('Reassign failed', err instanceof Error ? err.message : 'Unable to reassign.', 'error');
               } finally {
                 setSaving(false);
               }

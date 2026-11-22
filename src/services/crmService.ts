@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -159,11 +160,13 @@ export async function createEmployee(
 ): Promise<string> {
   const id = makeId('emp');
   const code = `EMP-${Math.floor(100 + Math.random() * 900)}`;
+  const normalizedEmail = payload.email.trim().toLowerCase();
   try {
     await setDoc(
       doc(db, 'employees', id),
       stripUndefined({
         ...payload,
+        email: normalizedEmail,
         employeeCode: code,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -184,6 +187,7 @@ export async function updateEmployee(
   try {
     const clean = stripUndefined({
       ...updates,
+      ...(updates.email ? { email: updates.email.trim().toLowerCase() } : {}),
       updatedAt: serverTimestamp(),
     });
     delete clean.id;
@@ -262,7 +266,7 @@ export async function createLead(
         leadCode,
         assignedEmployeeId: assignedEmp?.id,
         assignedEmployeeName: assignedEmp?.fullName,
-        assignedEmployeeEmail: assignedEmp?.email,
+        assignedEmployeeEmail: assignedEmp?.email?.toLowerCase(),
         assignedEmployeeUid: assignedEmp?.uid,
         leadScore: baseScore.leadScore,
         scoreTier: baseScore.scoreTier,
@@ -334,12 +338,26 @@ export async function updateLead(
 ): Promise<void> {
   try {
     const enriched: Record<string, unknown> = { ...updates, updatedAt: serverTimestamp() };
+    if (updates.email === '') {
+      enriched.email = deleteField();
+    }
+    if (updates.preferredBank === '') {
+      enriched.preferredBank = deleteField();
+    }
     if (employees && updates.assignedEmployeeId !== undefined) {
-      const emp = employees.find((e) => e.id === updates.assignedEmployeeId);
-      if (emp) {
-        enriched.assignedEmployeeName = emp.fullName;
-        enriched.assignedEmployeeEmail = emp.email;
-        if (emp.uid) enriched.assignedEmployeeUid = emp.uid;
+      if (!updates.assignedEmployeeId) {
+        enriched.assignedEmployeeId = deleteField();
+        enriched.assignedEmployeeName = deleteField();
+        enriched.assignedEmployeeEmail = deleteField();
+        enriched.assignedEmployeeUid = deleteField();
+      } else {
+        const emp = employees.find((e) => e.id === updates.assignedEmployeeId);
+        if (emp) {
+          enriched.assignedEmployeeName = emp.fullName;
+          enriched.assignedEmployeeEmail = emp.email.toLowerCase();
+          if (emp.uid) enriched.assignedEmployeeUid = emp.uid;
+          else enriched.assignedEmployeeUid = deleteField();
+        }
       }
     }
     delete enriched.id;
@@ -390,7 +408,7 @@ export async function assignLeadsToEmployee(
         stripUndefined({
           assignedEmployeeId: targetEmployee.id,
           assignedEmployeeName: targetEmployee.fullName,
-          assignedEmployeeEmail: targetEmployee.email,
+          assignedEmployeeEmail: targetEmployee.email.toLowerCase(),
           assignedEmployeeUid: targetEmployee.uid,
           updatedAt: serverTimestamp(),
         })
@@ -406,7 +424,7 @@ export async function assignLeadsToEmployee(
           fromEmployeeName: lead.assignedEmployeeName,
           toEmployeeId: targetEmployee.id,
           toEmployeeName: targetEmployee.fullName,
-          toEmployeeEmail: targetEmployee.email,
+          toEmployeeEmail: targetEmployee.email.toLowerCase(),
           assignedByUid: actor.uid,
           assignedByName: actor.name,
           method,
@@ -525,7 +543,7 @@ export async function roundRobinDistributeLeads(
           stripUndefined({
             assignedEmployeeId: emp.id,
             assignedEmployeeName: emp.fullName,
-            assignedEmployeeEmail: emp.email,
+            assignedEmployeeEmail: emp.email.toLowerCase(),
             assignedEmployeeUid: emp.uid,
             updatedAt: serverTimestamp(),
           })
@@ -540,7 +558,7 @@ export async function roundRobinDistributeLeads(
             fromEmployeeName: lead.assignedEmployeeName,
             toEmployeeId: emp.id,
             toEmployeeName: emp.fullName,
-            toEmployeeEmail: emp.email,
+            toEmployeeEmail: emp.email.toLowerCase(),
             assignedByUid: actor.uid,
             assignedByName: actor.name,
             method: 'round_robin',
@@ -812,7 +830,7 @@ export async function recordCallLog(
         customerName: lead.customerName,
         customerPhone: lead.phone,
         employeeId: employee.id,
-        employeeEmail: employee.email,
+        employeeEmail: employee.email.toLowerCase(),
         employeeUid: actor.uid,
         employeeName: employee.fullName,
         callTime: new Date().toISOString(),
@@ -866,7 +884,7 @@ export async function recordCallLog(
           customerName: lead.customerName,
           customerPhone: lead.phone,
           employeeId: employee.id,
-          employeeEmail: employee.email,
+          employeeEmail: employee.email.toLowerCase(),
           employeeUid: actor.uid,
           employeeName: employee.fullName,
           scheduledAt: new Date(payload.nextFollowUpDate).toISOString(),
@@ -933,7 +951,7 @@ export async function createFollowUp(
         customerName: lead.customerName,
         customerPhone: lead.phone,
         employeeId: employee.id,
-        employeeEmail: employee.email,
+        employeeEmail: employee.email.toLowerCase(),
         employeeUid: employee.uid || actor.uid,
         employeeName: employee.fullName,
         scheduledAt: new Date(scheduledAt).toISOString(),
@@ -996,7 +1014,7 @@ export async function reassignFollowUp(
       doc(db, 'follow_ups', followUp.id),
       stripUndefined({
         employeeId: employee.id,
-        employeeEmail: employee.email,
+        employeeEmail: employee.email.toLowerCase(),
         employeeUid: employee.uid,
         employeeName: employee.fullName,
         ...(scheduledAt ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
