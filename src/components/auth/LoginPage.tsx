@@ -5,9 +5,12 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Headset,
   KeyRound,
   Lock,
   Mail,
+  ShieldCheck,
+  User as UserIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -20,23 +23,44 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
+const registerSchema = z
+  .object({
+    fullName: z.string().trim().min(2, 'Enter your full name (at least 2 characters)').max(120),
+    email: z.string().email('Enter a valid work email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+    confirmPassword: z.string().min(6, 'Confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
 type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function LoginPage() {
   const {
     signInWithGoogle,
     signInWithEmail,
+    signUpWithEmail,
+    checkEmailVerified,
     resetPassword,
     resendVerification,
+    loginIntent,
+    setLoginIntent,
     authError,
+    verificationNotice,
     unverifiedEmail,
     clearAuthError,
   } = useAuth();
 
-  const [mode, setMode] = useState<'login' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [submitting, setSubmitting] = useState(false);
+  const [registerBusy, setRegisterBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [verifyCheckBusy, setVerifyCheckBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const [resetEmail, setResetEmail] = useState('');
@@ -54,6 +78,14 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema) as never,
   });
 
+  const {
+    register: registerSignup,
+    handleSubmit: handleSignupSubmit,
+    formState: { errors: signupErrors },
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema) as never,
+  });
+
   const onSubmit = async (values: LoginFormValues) => {
     setSubmitting(true);
     setVerificationSent(false);
@@ -63,6 +95,18 @@ export function LoginPage() {
       // Error surfaced via authError in context
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onRegisterSubmit = async (values: RegisterFormValues) => {
+    setRegisterBusy(true);
+    setVerificationSent(false);
+    try {
+      await signUpWithEmail(values.fullName, values.email, values.password);
+    } catch {
+      // Error surfaced via authError in context
+    } finally {
+      setRegisterBusy(false);
     }
   };
 
@@ -230,26 +274,94 @@ export function LoginPage() {
 
           <div>
             <h2 className="text-2xl font-semibold font-display text-slate-900 tracking-tight">
-              {mode === 'login' ? 'Sign in to your workspace' : 'Reset your password'}
+              {mode === 'login'
+                ? 'Sign in to your workspace'
+                : mode === 'register'
+                ? 'Create your FinBridge account'
+                : 'Reset your password'}
             </h2>
             <p className="text-sm text-slate-600 mt-1">
               {mode === 'login'
                 ? 'Access the Admin Console, Mobile Admin, or Staff Call Centre Portal.'
+                : mode === 'register'
+                ? 'Register with your work email and password, then verify your email to enter.'
                 : 'Enter your registered work email and we will send a Firebase password recovery link.'}
             </p>
           </div>
 
+          {verificationNotice && !authError && (
+            <div
+              role="status"
+              className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200/90 text-xs text-emerald-900 leading-relaxed space-y-2.5"
+            >
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>{verificationNotice}</span>
+              </div>
+              {unverifiedEmail && (
+                <div className="pl-6 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={verifyCheckBusy}
+                    onClick={async () => {
+                      setVerifyCheckBusy(true);
+                      try {
+                        await checkEmailVerified();
+                      } finally {
+                        setVerifyCheckBusy(false);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  >
+                    {verifyCheckBusy ? 'Checking...' : "I've verified — Continue"}
+                  </button>
+                  {verificationSent ? (
+                    <span className="text-emerald-700 font-medium">
+                      Verification link re-sent to {unverifiedEmail}.
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await resendVerification();
+                        setVerificationSent(true);
+                      }}
+                      className="font-semibold text-emerald-800 hover:text-emerald-950 underline underline-offset-2"
+                    >
+                      Resend verification email
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {authError && (
             <div
               role="alert"
-              className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/90 text-xs text-rose-800 leading-relaxed space-y-2"
+              className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/90 text-xs text-rose-800 leading-relaxed space-y-2.5"
             >
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 <span>{authError}</span>
               </div>
               {unverifiedEmail && (
-                <div className="pl-6">
+                <div className="pl-6 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={verifyCheckBusy}
+                    onClick={async () => {
+                      setVerifyCheckBusy(true);
+                      try {
+                        await checkEmailVerified();
+                      } finally {
+                        setVerifyCheckBusy(false);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {verifyCheckBusy ? 'Checking...' : "I've verified — Continue"}
+                  </button>
                   {verificationSent ? (
                     <span className="text-emerald-700 font-medium">
                       Verification link dispatched to {unverifiedEmail}.
@@ -273,8 +385,81 @@ export function LoginPage() {
 
           {/* Refined Auth Card */}
           <div className="bg-white border border-slate-200/95 ring-1 ring-slate-950/[0.03] rounded-2xl p-6 sm:p-7 shadow-[0_14px_40px_-10px_rgba(15,23,42,0.10),0_2px_8px_-2px_rgba(15,23,42,0.04)] space-y-5">
+            {mode !== 'forgot' && (
+              <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearAuthError();
+                    setVerificationSent(false);
+                    setMode('login');
+                  }}
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                    mode === 'login'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearAuthError();
+                    setVerificationSent(false);
+                    setMode('register');
+                  }}
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                    mode === 'register'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Create Account
+                </button>
+              </div>
+            )}
+
             {mode === 'login' ? (
               <>
+                {/* Staff vs Admin Role Portal Selector */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Portal Access
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {loginIntent === 'admin' ? 'Routes to Admin Console' : 'Routes to Staff Portal'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setLoginIntent('staff')}
+                      className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                        loginIntent === 'staff'
+                          ? 'bg-emerald-50/90 border-emerald-500 text-emerald-900 shadow-xs ring-1 ring-emerald-500/20'
+                          : 'bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                      }`}
+                    >
+                      <Headset className={`w-4 h-4 ${loginIntent === 'staff' ? 'text-emerald-600' : 'text-slate-500'}`} />
+                      Login as Staff
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLoginIntent('admin')}
+                      className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                        loginIntent === 'admin'
+                          ? 'bg-blue-50/90 border-blue-600 text-blue-950 shadow-xs ring-1 ring-blue-600/20'
+                          : 'bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                      }`}
+                    >
+                      <ShieldCheck className={`w-4 h-4 ${loginIntent === 'admin' ? 'text-blue-600' : 'text-slate-500'}`} />
+                      Login as Admin
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleGoogle}
@@ -299,7 +484,9 @@ export function LoginPage() {
                       d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
                     />
                   </svg>
-                  {googleBusy ? 'Connecting to Google...' : 'Continue with Google'}
+                  {googleBusy
+                    ? 'Connecting to Google...'
+                    : `Continue with Google (${loginIntent === 'admin' ? 'Admin' : 'Staff'})`}
                 </button>
 
                 <div className="relative flex items-center">
@@ -319,10 +506,10 @@ export function LoginPage() {
                         id="login-email"
                         type="email"
                         autoComplete="email"
-                        placeholder="name@loancrm.com"
+                        placeholder={loginIntent === 'admin' ? 'adminonair46@gmail.com' : 'staff@loancrm.com'}
                         {...register('email', {
                           onChange: () => {
-                            if (authError) clearAuthError();
+                            if (authError || verificationNotice) clearAuthError();
                           },
                         })}
                         className="crm-input pl-9 min-h-[44px] text-base sm:text-sm"
@@ -353,7 +540,7 @@ export function LoginPage() {
                         placeholder="Enter your password"
                         {...register('password', {
                           onChange: () => {
-                            if (authError) clearAuthError();
+                            if (authError || verificationNotice) clearAuthError();
                           },
                         })}
                         className="crm-input pl-9 pr-10 min-h-[44px] text-base sm:text-sm"
@@ -375,10 +562,120 @@ export function LoginPage() {
                     disabled={submitting}
                     className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-blue-600 text-white text-sm font-semibold shadow-[0_2px_6px_rgba(37,99,235,0.28)] hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
-                    {submitting ? 'Signing in...' : 'Sign In'}
+                    {submitting
+                      ? 'Signing in...'
+                      : `Sign In as ${loginIntent === 'admin' ? 'Admin' : 'Staff'}`}
                   </button>
                 </form>
               </>
+            ) : mode === 'register' ? (
+              <form onSubmit={handleSignupSubmit(onRegisterSubmit)} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="reg-fullname">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="reg-fullname"
+                      type="text"
+                      autoComplete="name"
+                      placeholder="Priya Nair"
+                      {...registerSignup('fullName', {
+                        onChange: () => {
+                          if (authError || verificationNotice) clearAuthError();
+                        },
+                      })}
+                      className="crm-input pl-9 min-h-[44px] text-base sm:text-sm"
+                    />
+                  </div>
+                  {signupErrors.fullName && <p className="text-xs text-rose-600 mt-1">{signupErrors.fullName.message}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="reg-email">
+                    Work Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="reg-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="name@company.com"
+                      {...registerSignup('email', {
+                        onChange: () => {
+                          if (authError || verificationNotice) clearAuthError();
+                        },
+                      })}
+                      className="crm-input pl-9 min-h-[44px] text-base sm:text-sm"
+                    />
+                  </div>
+                  {signupErrors.email && <p className="text-xs text-rose-600 mt-1">{signupErrors.email.message}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="reg-password">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="reg-password"
+                      type={showRegPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="At least 6 characters"
+                      {...registerSignup('password', {
+                        onChange: () => {
+                          if (authError || verificationNotice) clearAuthError();
+                        },
+                      })}
+                      className="crm-input pl-9 pr-10 min-h-[44px] text-base sm:text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegPassword((s) => !s)}
+                      aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-500 hover:text-slate-800 transition-colors"
+                    >
+                      {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {signupErrors.password && <p className="text-xs text-rose-600 mt-1">{signupErrors.password.message}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="reg-confirm">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="reg-confirm"
+                      type={showRegPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="Re-enter your password"
+                      {...registerSignup('confirmPassword', {
+                        onChange: () => {
+                          if (authError || verificationNotice) clearAuthError();
+                        },
+                      })}
+                      className="crm-input pl-9 min-h-[44px] text-base sm:text-sm"
+                    />
+                  </div>
+                  {signupErrors.confirmPassword && (
+                    <p className="text-xs text-rose-600 mt-1">{signupErrors.confirmPassword.message}</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={registerBusy}
+                  className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-blue-600 text-white text-sm font-semibold shadow-[0_2px_6px_rgba(37,99,235,0.28)] hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {registerBusy ? 'Creating account...' : 'Create Account'}
+                </button>
+              </form>
             ) : (
               <form onSubmit={handleResetSubmit} className="space-y-4">
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-600 pb-2 border-b border-slate-100">
@@ -387,10 +684,10 @@ export function LoginPage() {
                 </div>
 
                 {resetSentTo && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2">
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2 leading-relaxed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
-                      Recovery instructions sent to <strong>{resetSentTo}</strong>. Check your inbox and spam folder, then sign in with your new password.
+                      Recovery link sent to <strong>{resetSentTo}</strong>. Open only the newest email once (requesting another link invalidates older ones). If you sign in with Google, you can also set a password directly from your account menu inside the workspace.
                     </span>
                   </div>
                 )}

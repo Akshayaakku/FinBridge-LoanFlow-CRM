@@ -29,7 +29,8 @@ service cloud.firestore {
     function isBootstrappedAdmin() {
       return isVerifiedUser() && (
         request.auth.token.email == 'b03328764@gmail.com' ||
-        request.auth.token.email == 'admin@loancrm.com'
+        request.auth.token.email == 'admin@loancrm.com' ||
+        request.auth.token.email == 'adminonair46@gmail.com'
       );
     }
 

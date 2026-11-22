@@ -8,6 +8,7 @@ import {
   ChevronRight,
   FileCheck2,
   GitBranch,
+  KeyRound,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -23,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCrmData } from '../../context/CrmDataContext';
 import { cn, getDateKey, getTodayKey } from '../../lib/utils';
 import { NotificationCenter } from '../ui/NotificationCenter';
+import { PasswordModal } from '../ui/PasswordModal';
 import { FinBridgeLogo } from '../ui/FinBridgeLogo';
 
 export type AdminTab =
@@ -86,11 +88,12 @@ export function AdminLayout({
   onGlobalSearchChange: (val: string) => void;
   children: React.ReactNode;
 }) {
-  const { userProfile, role, setPortalMode, signOut } = useAuth();
+  const { userProfile, role, hasPasswordProvider, setPortalMode, signOut } = useAuth();
   const { seeding, leads, followUps, documents } = useCrmData();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -470,6 +473,17 @@ export function AdminLayout({
                     </button>
                     <button
                       type="button"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        setPasswordModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
+                    >
+                      <KeyRound className="w-4 h-4 text-slate-600" />
+                      {hasPasswordProvider ? 'Update Password' : 'Set Login Password'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={signOut}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                     >
@@ -485,6 +499,7 @@ export function AdminLayout({
 
         <main className="flex-1 p-4 sm:p-6 max-w-[1600px] w-full mx-auto">{children}</main>
       </div>
+      <PasswordModal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} />
     </div>
   );
 }

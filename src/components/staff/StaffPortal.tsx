@@ -6,6 +6,7 @@ import {
   Eye,
   FileCheck2,
   Flame,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -34,6 +35,7 @@ import {
 } from '../../types/crm';
 import { LeadScoreBadge, LeadScoreBreakdownCard } from '../ui/LeadScoreBadge';
 import { NotificationCenter } from '../ui/NotificationCenter';
+import { PasswordModal } from '../ui/PasswordModal';
 import { FinBridgeLogo } from '../ui/FinBridgeLogo';
 import { ChartTooltip, Drawer, EntityMonogram, KpiCard, Modal, StatusBadge } from '../ui/Primitives';
 import { StaffApplicationsTab, StaffDocumentsTab, StaffFollowUpsTab, StaffPerformanceTab } from './StaffOperationsTabs';
@@ -59,12 +61,14 @@ export function StaffPortal() {
     setPortalMode,
     inspectedStaffEmail,
     setInspectedStaffEmail,
+    hasPasswordProvider,
     signOut,
   } = useAuth();
   const { employees, leads, callLogs, followUps, documents, applications, statusHistory, notify } = useCrmData();
 
   const [activeTab, setActiveTab] = useState<StaffTab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   // Determine the active staff profile (strictly own email for staff role, selectable for admin preview)
   const activeEmail = role === 'staff' ? userProfile?.email || '' : inspectedStaffEmail;
@@ -556,6 +560,15 @@ export function StaffPortal() {
               staffEmail={activeEmployee.email}
               onNavigate={(tab) => setActiveTab(tab as StaffTab)}
             />
+            <button
+              type="button"
+              onClick={() => setPasswordModalOpen(true)}
+              className="crm-btn-secondary py-1.5"
+              title={hasPasswordProvider ? 'Update Login Password' : 'Set Login Password'}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">{hasPasswordProvider ? 'Password' : 'Set Password'}</span>
+            </button>
             <button
               type="button"
               onClick={signOut}
@@ -1163,6 +1176,7 @@ export function StaffPortal() {
           </div>
         </div>
       </Modal>
+      <PasswordModal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} />
     </div>
   );
 }
