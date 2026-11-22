@@ -1,0 +1,8 @@
+{
+  "name": "FinBridge CRM",
+  "description": "Enterprise Loan Sales & Call Centre CRM System for financial intermediaries managing leads, call operations, follow-ups, KYC documents, partner banks, and loan disbursements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

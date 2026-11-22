@@ -1,0 +1,636 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true && request.auth.token.email is string;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'b03328764@gmail.com' ||
+        request.auth.token.email == 'admin@loancrm.com'
+      );
+    }
+
+    function isAdminDoc() {
+      return isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || isAdminDoc();
+    }
+
+    function isOwnerByEmail(email) {
+      return isVerifiedUser() && email is string && request.auth.token.email == email;
+    }
+
+    function isAssignedToCaller(docData) {
+      return isVerifiedUser() && (
+        (docData.assignedEmployeeUid is string && docData.assignedEmployeeUid == request.auth.uid) ||
+        (docData.assignedEmployeeEmail is string && docData.assignedEmployeeEmail == request.auth.token.email)
+      );
+    }
+
+    function isEmployeeOwner(docData) {
+      return isVerifiedUser() && (
+        (docData.employeeUid is string && docData.employeeUid == request.auth.uid) ||
+        (docData.employeeEmail is string && docData.employeeEmail == request.auth.token.email)
+      );
+    }
+
+    function isOptString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isOptNumber(data, field) {
+      return !(field in data) || (data[field] is number);
+    }
+
+    // Validation Helpers
+    function isValidUserAccount(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'role', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'fullName', 'role', 'employeeId', 'status', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 150
+        && data.role in ['admin', 'staff']
+        && data.status in ['active', 'inactive']
+        && isOptString(data, 'employeeId', 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminMarker(data) {
+      return data.keys().hasAll(['email', 'createdAt'])
+        && data.keys().hasOnly(['email', 'createdAt'])
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.createdAt is timestamp;
+    }
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['employeeCode', 'fullName', 'email', 'phone', 'role', 'department', 'joiningDate', 'status', 'dailyCallTarget', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['employeeCode', 'uid', 'fullName', 'email', 'phone', 'role', 'department', 'joiningDate', 'status', 'dailyCallTarget', 'createdAt', 'updatedAt'])
+        && data.employeeCode is string && data.employeeCode.size() >= 2 && data.employeeCode.size() <= 32
+        && isOptString(data, 'uid', 128)
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 32
+        && data.role in ['admin', 'staff']
+        && data.department is string && data.department.size() >= 2 && data.department.size() <= 100
+        && data.joiningDate is string && data.joiningDate.size() >= 4 && data.joiningDate.size() <= 40
+        && data.status in ['active', 'inactive']
+        && data.dailyCallTarget is number && data.dailyCallTarget >= 0 && data.dailyCallTarget <= 1000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScoreFactors(data) {
+      return !('scoreFactors' in data) || (
+        data.scoreFactors is map
+        && data.scoreFactors.keys().hasAll(['demographics', 'financialCapacity', 'sourceQuality', 'engagementHistory'])
+        && data.scoreFactors.keys().hasOnly(['demographics', 'financialCapacity', 'sourceQuality', 'engagementHistory'])
+        && data.scoreFactors.demographics is number
+        && data.scoreFactors.financialCapacity is number
+        && data.scoreFactors.sourceQuality is number
+        && data.scoreFactors.engagementHistory is number
+      );
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll(['leadCode', 'customerName', 'phone', 'city', 'state', 'employmentType', 'monthlyIncome', 'requiredLoanAmount', 'loanType', 'leadSource', 'status', 'priority', 'isArchived', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['leadCode', 'customerName', 'phone', 'email', 'city', 'state', 'employmentType', 'monthlyIncome', 'requiredLoanAmount', 'loanType', 'preferredBank', 'leadSource', 'assignedEmployeeId', 'assignedEmployeeName', 'assignedEmployeeEmail', 'assignedEmployeeUid', 'status', 'priority', 'remarks', 'leadScore', 'scoreTier', 'scoreSummary', 'scoreFactors', 'scoredAt', 'scoreModel', 'isArchived', 'leadDate', 'createdAt', 'updatedAt'])
+        && data.leadCode is string && data.leadCode.size() >= 2 && data.leadCode.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 150
+        && data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 32
+        && isOptString(data, 'email', 200)
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 100
+        && data.state is string && data.state.size() >= 1 && data.state.size() <= 100
+        && data.employmentType in ['Salaried', 'Self-Employed', 'Business Owner', 'Professional']
+        && data.monthlyIncome is number && data.monthlyIncome >= 0
+        && data.requiredLoanAmount is number && data.requiredLoanAmount >= 0
+        && data.loanType in ['Home Loan', 'Personal Loan', 'Business Loan', 'Auto Loan', 'Education Loan', 'Loan Against Property']
+        && isOptString(data, 'preferredBank', 120)
+        && data.leadSource is string && data.leadSource.size() >= 1 && data.leadSource.size() <= 80
+        && isOptString(data, 'assignedEmployeeId', 128)
+        && isOptString(data, 'assignedEmployeeName', 150)
+        && isOptString(data, 'assignedEmployeeEmail', 200)
+        && isOptString(data, 'assignedEmployeeUid', 128)
+        && data.status in ['New', 'Contacted', 'Interested', 'Not Interested', 'Callback Requested', 'Qualified', 'Converted', 'Lost']
+        && data.priority in ['High', 'Medium', 'Low']
+        && isOptString(data, 'remarks', 2000)
+        && (!('leadScore' in data) || (data.leadScore is number && data.leadScore >= 0 && data.leadScore <= 100))
+        && (!('scoreTier' in data) || data.scoreTier in ['Hot', 'Warm', 'Cold'])
+        && isOptString(data, 'scoreSummary', 400)
+        && isValidScoreFactors(data)
+        && isOptString(data, 'scoredAt', 64)
+        && isOptString(data, 'scoreModel', 80)
+        && isOptString(data, 'leadDate', 40)
+        && data.isArchived is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeadAssignment(data) {
+      return data.keys().hasAll(['leadId', 'leadCode', 'customerName', 'toEmployeeId', 'toEmployeeName', 'assignedByUid', 'assignedByName', 'method', 'createdAt'])
+        && data.keys().hasOnly(['leadId', 'leadCode', 'customerName', 'fromEmployeeId', 'fromEmployeeName', 'toEmployeeId', 'toEmployeeName', 'toEmployeeEmail', 'assignedByUid', 'assignedByName', 'method', 'notes', 'createdAt'])
+        && data.leadId is string && data.leadId.size() >= 1 && data.leadId.size() <= 128
+        && data.leadCode is string && data.leadCode.size() >= 1 && data.leadCode.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 150
+        && isOptString(data, 'fromEmployeeId', 128)
+        && isOptString(data, 'fromEmployeeName', 150)
+        && data.toEmployeeId is string && data.toEmployeeId.size() >= 1 && data.toEmployeeId.size() <= 128
+        && data.toEmployeeName is string && data.toEmployeeName.size() >= 1 && data.toEmployeeName.size() <= 150
+        && isOptString(data, 'toEmployeeEmail', 200)
+        && data.assignedByUid is string && data.assignedByUid.size() >= 1 && data.assignedByUid.size() <= 128
+        && data.assignedByName is string && data.assignedByName.size() >= 1 && data.assignedByName.size() <= 150
+        && data.method in ['manual', 'bulk', 'round_robin']
+        && isOptString(data, 'notes', 500)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCallLog(data) {
+      return data.keys().hasAll(['leadId', 'leadCode', 'customerName', 'customerPhone', 'employeeId', 'employeeEmail', 'employeeName', 'callTime', 'durationSeconds', 'status', 'createdAt'])
+        && data.keys().hasOnly(['leadId', 'leadCode', 'customerName', 'customerPhone', 'employeeId', 'employeeEmail', 'employeeUid', 'employeeName', 'callTime', 'durationSeconds', 'status', 'remarks', 'nextFollowUpDate', 'createdAt'])
+        && data.leadId is string && data.leadId.size() >= 1 && data.leadId.size() <= 128
+        && data.leadCode is string && data.leadCode.size() >= 1 && data.leadCode.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 150
+        && data.customerPhone is string && data.customerPhone.size() >= 4 && data.customerPhone.size() <= 32
+        && data.employeeId is string && data.employeeId.size() >= 1 && data.employeeId.size() <= 128
+        && data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 200
+        && isOptString(data, 'employeeUid', 128)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 150
+        && data.callTime is string && data.callTime.size() >= 8 && data.callTime.size() <= 64
+        && data.durationSeconds is number && data.durationSeconds >= 0 && data.durationSeconds <= 86400
+        && data.status in ['Connected', 'Not Connected', 'Busy', 'No Answer', 'Interested', 'Not Interested', 'Callback Requested', 'Wrong Number']
+        && isOptString(data, 'remarks', 2000)
+        && isOptString(data, 'nextFollowUpDate', 64)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidFollowUp(data) {
+      return data.keys().hasAll(['leadId', 'leadCode', 'customerName', 'customerPhone', 'employeeId', 'employeeEmail', 'employeeName', 'scheduledAt', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['leadId', 'leadCode', 'customerName', 'customerPhone', 'employeeId', 'employeeEmail', 'employeeUid', 'employeeName', 'scheduledAt', 'notes', 'status', 'completedAt', 'outcomeNotes', 'createdAt', 'updatedAt'])
+        && data.leadId is string && data.leadId.size() >= 1 && data.leadId.size() <= 128
+        && data.leadCode is string && data.leadCode.size() >= 1 && data.leadCode.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 150
+        && data.customerPhone is string && data.customerPhone.size() >= 4 && data.customerPhone.size() <= 32
+        && data.employeeId is string && data.employeeId.size() >= 1 && data.employeeId.size() <= 128
+        && data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 200
+        && isOptString(data, 'employeeUid', 128)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 150
+        && data.scheduledAt is string && data.scheduledAt.size() >= 8 && data.scheduledAt.size() <= 64
+        && isOptString(data, 'notes', 1500)
+        && data.status in ['pending', 'completed', 'cancelled']
+        && isOptString(data, 'completedAt', 64)
+        && isOptString(data, 'outcomeNotes', 1000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCustomerDocument(data) {
+      return data.keys().hasAll(['leadId', 'leadCode', 'customerName', 'employeeId', 'employeeEmail', 'employeeName', 'docType', 'fileName', 'mimeType', 'fileSize', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['leadId', 'leadCode', 'customerName', 'employeeId', 'employeeEmail', 'employeeUid', 'employeeName', 'docType', 'fileName', 'mimeType', 'fileSize', 'hasFileBlob', 'previewSummary', 'status', 'rejectionReason', 'verifiedByUid', 'verifiedByName', 'verifiedAt', 'createdAt', 'updatedAt'])
+        && data.leadId is string && data.leadId.size() >= 1 && data.leadId.size() <= 128
+        && data.leadCode is string && data.leadCode.size() >= 1 && data.leadCode.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 150
+        && data.employeeId is string && data.employeeId.size() >= 1 && data.employeeId.size() <= 128
+        && data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 200
+        && isOptString(data, 'employeeUid', 128)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 150
+        && data.docType in ['Aadhaar Card', 'PAN Card', 'Bank Statement', 'Salary Slip', 'Employment Proof', 'Address Proof', 'Other Documents']
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 240
+        && data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 120
+        && data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 20000000
+        && (!( 'hasFileBlob' in data ) || data.hasFileBlob is bool)
+        && isOptString(data, 'previewSummary', 500)
+        && data.status in ['Pending', 'Verified', 'Rejected', 'Re-upload Required']
+        && isOptString(data, 'rejectionReason', 500)
+        && isOptString(data, 'verifiedByUid', 128)
+        && isOptString(data, 'verifiedByName', 150)
+        && isOptString(data, 'verifiedAt', 64)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDocumentFile(data) {
+      return data.keys().hasAll(['docId', 'leadId', 'employeeEmail', 'dataUrl', 'createdAt'])
+        && data.keys().hasOnly(['docId', 'leadId', 'employeeEmail', 'employeeUid', 'dataUrl', 'createdAt'])
+        && data.docId is string && data.docId.size() >= 1 && data.docId.size() <= 128
+        && data.leadId is string && data.leadId.size() >= 1 && data.leadId.size() <= 128
+        && data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 200
+        && isOptString(data, 'employeeUid', 128)
+        && data.dataUrl is string && data.dataUrl.size() >= 1 && data.dataUrl.size() <= 900000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidBank(data) {
+      return data.keys().hasAll(['name', 'shortCode', 'logoColor', 'contactPerson', 'contactNumber', 'email', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'shortCode', 'logoColor', 'contactPerson', 'contactNumber', 'email', 'status', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 150
+        && data.shortCode is string && data.shortCode.size() >= 2 && data.shortCode.size() <= 16
+        && data.logoColor is string && data.logoColor.size() >= 4 && data.logoColor.size() <= 24
+        && data.contactPerson is string && data.contactPerson.size() >= 2 && data.contactPerson.size() <= 150
+        && data.contactNumber is string && data.contactNumber.size() >= 5 && data.contactNumber.size() <= 32
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLoanScheme(data) {
+      return data.keys().hasAll(['bankId', 'bankName', 'schemeName', 'loanType', 'minAmount', 'maxAmount', 'interestRate', 'minIncome', 'processingFee', 'tenureMonths', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['bankId', 'bankName', 'schemeName', 'loanType', 'minAmount', 'maxAmount', 'interestRate', 'minIncome', 'minCreditScore', 'processingFee', 'tenureMonths', 'description', 'status', 'createdAt', 'updatedAt'])
+        && data.bankId is string && data.bankId.size() >= 1 && data.bankId.size() <= 128
+        && data.bankName is string && data.bankName.size() >= 1 && data.bankName.size() <= 150
+        && data.schemeName is string && data.schemeName.size() >= 2 && data.schemeName.size() <= 180
+        && data.loanType in ['Home Loan', 'Personal Loan', 'Business Loan', 'Auto Loan', 'Education Loan', 'Loan Against Property']
+        && data.minAmount is number && data.minAmount >= 0
+        && data.maxAmount is number && data.maxAmount >= data.minAmount
+        && data.interestRate is number && data.interestRate >= 0 && data.interestRate <= 100
+        && data.minIncome is number && data.minIncome >= 0
+        && isOptNumber(data, 'minCreditScore')
+        && data.processingFee is string && data.processingFee.size() >= 1 && data.processingFee.size() <= 64
+        && data.tenureMonths is string && data.tenureMonths.size() >= 1 && data.tenureMonths.size() <= 64
+        && isOptString(data, 'description', 1500)
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLoanApplication(data) {
+      return data.keys().hasAll(['applicationCode', 'leadId', 'leadCode', 'customerName', 'customerPhone', 'employeeId', 'employeeEmail', 'employeeName', 'bankId', 'bankName', 'schemeId', 'schemeName', 'loanAmount', 'applicationDate', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['applicationCode', 'leadId', 'leadCode', 'customerName', 'customerPhone', 'employeeId', 'employeeEmail', 'employeeUid', 'employeeName', 'bankId', 'bankName', 'schemeId', 'schemeName', 'loanType', 'loanAmount', 'applicationDate', 'status', 'bankReferenceNumber', 'remarks', 'disbursedAmount', 'disbursedAt', 'createdAt', 'updatedAt'])
+        && data.applicationCode is string && data.applicationCode.size() >= 2 && data.applicationCode.size() <= 32
+        && data.leadId is string && data.leadId.size() >= 1 && data.leadId.size() <= 128
+        && data.leadCode is string && data.leadCode.size() >= 1 && data.leadCode.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 150
+        && data.customerPhone is string && data.customerPhone.size() >= 4 && data.customerPhone.size() <= 32
+        && data.employeeId is string && data.employeeId.size() >= 1 && data.employeeId.size() <= 128
+        && data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 200
+        && isOptString(data, 'employeeUid', 128)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 150
+        && data.bankId is string && data.bankId.size() >= 1 && data.bankId.size() <= 128
+        && data.bankName is string && data.bankName.size() >= 1 && data.bankName.size() <= 150
+        && data.schemeId is string && data.schemeId.size() >= 1 && data.schemeId.size() <= 128
+        && data.schemeName is string && data.schemeName.size() >= 1 && data.schemeName.size() <= 180
+        && isOptString(data, 'loanType', 80)
+        && data.loanAmount is number && data.loanAmount >= 0
+        && data.applicationDate is string && data.applicationDate.size() >= 8 && data.applicationDate.size() <= 64
+        && data.status in ['Lead Interested', 'Documents Pending', 'Documents Submitted', 'Under Bank Review', 'Additional Documents Required', 'Approved', 'Rejected', 'Disbursed', 'Closed']
+        && isOptString(data, 'bankReferenceNumber', 80)
+        && isOptString(data, 'remarks', 2000)
+        && isOptNumber(data, 'disbursedAmount')
+        && isOptString(data, 'disbursedAt', 64)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLoanStatusHistory(data) {
+      return data.keys().hasAll(['applicationId', 'applicationCode', 'toStatus', 'changedByUid', 'changedByName', 'createdAt'])
+        && data.keys().hasOnly(['applicationId', 'applicationCode', 'employeeEmail', 'fromStatus', 'toStatus', 'remarks', 'changedByUid', 'changedByName', 'createdAt'])
+        && data.applicationId is string && data.applicationId.size() >= 1 && data.applicationId.size() <= 128
+        && data.applicationCode is string && data.applicationCode.size() >= 1 && data.applicationCode.size() <= 32
+        && isOptString(data, 'employeeEmail', 200)
+        && isOptString(data, 'fromStatus', 64)
+        && data.toStatus is string && data.toStatus.size() >= 1 && data.toStatus.size() <= 64
+        && isOptString(data, 'remarks', 1000)
+        && data.changedByUid is string && data.changedByUid.size() >= 1 && data.changedByUid.size() <= 128
+        && data.changedByName is string && data.changedByName.size() >= 1 && data.changedByName.size() <= 150
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDailyTarget(data) {
+      return data.keys().hasAll(['employeeId', 'employeeEmail', 'date', 'callTarget', 'updatedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['employeeId', 'employeeEmail', 'date', 'callTarget', 'updatedByUid', 'createdAt', 'updatedAt'])
+        && data.employeeId is string && data.employeeId.size() >= 1 && data.employeeId.size() <= 128
+        && data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 200
+        && data.date is string && data.date.size() >= 8 && data.date.size() <= 20
+        && data.callTarget is number && data.callTarget >= 0 && data.callTarget <= 1000
+        && data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidActivityLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorName', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorEmail', 'actorName', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'createdAt'])
+        && data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128
+        && isOptString(data, 'actorEmail', 200)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 150
+        && data.actorRole in ['admin', 'staff']
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 120
+        && data.entityType is string && data.entityType.size() >= 1 && data.entityType.size() <= 64
+        && data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCrmSettings(data) {
+      return data.keys().hasAll(['duplicateRule', 'defaultDailyCallTarget', 'roundRobinIndex', 'seeded', 'updatedAt'])
+        && data.keys().hasOnly(['duplicateRule', 'defaultDailyCallTarget', 'roundRobinIndex', 'seeded', 'updatedAt'])
+        && data.duplicateRule in ['phone', 'email', 'phone_or_email', 'none']
+        && data.defaultDailyCallTarget is number && data.defaultDailyCallTarget >= 0 && data.defaultDailyCallTarget <= 1000
+        && data.roundRobinIndex is number && data.roundRobinIndex >= 0
+        && data.seeded is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['targetRole', 'targetEmail', 'category', 'severity', 'title', 'message', 'entityType', 'entityId', 'read', 'actorName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['targetRole', 'targetEmail', 'category', 'severity', 'title', 'message', 'entityType', 'entityId', 'leadCode', 'read', 'readAt', 'actorName', 'createdAt', 'updatedAt'])
+        && data.targetRole in ['admin', 'staff']
+        && data.targetEmail is string && data.targetEmail.size() >= 3 && data.targetEmail.size() <= 200
+        && data.category in ['lead_assigned', 'lead_attention', 'follow_up_upcoming', 'doc_update', 'application_update']
+        && data.severity in ['info', 'warning', 'urgent', 'success']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 500
+        && data.entityType in ['lead', 'follow_up', 'customer_document', 'loan_application']
+        && data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128
+        && isOptString(data, 'leadCode', 32)
+        && data.read is bool
+        && isOptString(data, 'readAt', 64)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 150
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Collection Rules
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isAdmin() || (isVerifiedUser() && request.auth.uid == adminUid));
+      allow list: if isAdmin();
+      allow create: if isValidId(adminUid) && isValidAdminMarker(incoming()) && incoming().createdAt == request.time && (isAdmin() || (isBootstrappedAdmin() && request.auth.uid == adminUid));
+      allow update, delete: if isValidId(adminUid) && isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isAdmin() || (isVerifiedUser() && request.auth.uid == userId));
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isValidUserAccount(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && request.auth.uid == userId && incoming().uid == request.auth.uid && incoming().email == request.auth.token.email && incoming().role == 'staff')
+        );
+      allow update: if isValidId(userId)
+        && isValidUserAccount(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && request.auth.uid == userId && incoming().uid == existing().uid && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow get: if isValidId(employeeId) && (isAdmin() || isOwnerByEmail(existing().email));
+      allow list: if isAdmin() || isOwnerByEmail(resource.data.email);
+      allow create: if isValidId(employeeId)
+        && isAdmin()
+        && isValidEmployee(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(employeeId)
+        && isAdmin()
+        && isValidEmployee(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(employeeId) && isAdmin();
+    }
+
+    match /leads/{leadId} {
+      allow get: if isValidId(leadId) && (isAdmin() || isAssignedToCaller(existing()));
+      allow list: if isAdmin() || isAssignedToCaller(resource.data);
+      allow create: if isValidId(leadId)
+        && isAdmin()
+        && isValidLead(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(leadId)
+        && isValidLead(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isAssignedToCaller(existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'remarks', 'priority', 'leadScore', 'scoreTier', 'scoreSummary', 'scoreFactors', 'scoredAt', 'scoreModel', 'updatedAt']))
+        );
+      allow delete: if isValidId(leadId) && isAdmin();
+    }
+
+    match /lead_assignments/{assignmentId} {
+      allow get: if isValidId(assignmentId) && (isAdmin() || isOwnerByEmail(existing().toEmployeeEmail));
+      allow list: if isAdmin() || isOwnerByEmail(resource.data.toEmployeeEmail);
+      allow create: if isValidId(assignmentId)
+        && isAdmin()
+        && isValidLeadAssignment(incoming())
+        && incoming().assignedByUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(assignmentId) && isAdmin();
+    }
+
+    match /call_logs/{callId} {
+      allow get: if isValidId(callId) && (isAdmin() || isEmployeeOwner(existing()));
+      allow list: if isAdmin() || isEmployeeOwner(resource.data);
+      allow create: if isValidId(callId)
+        && isValidCallLog(incoming())
+        && incoming().createdAt == request.time
+        && (isAdmin() || isEmployeeOwner(incoming()));
+      allow update, delete: if isValidId(callId) && isAdmin();
+    }
+
+    match /follow_ups/{followUpId} {
+      allow get: if isValidId(followUpId) && (isAdmin() || isEmployeeOwner(existing()));
+      allow list: if isAdmin() || isEmployeeOwner(resource.data);
+      allow create: if isValidId(followUpId)
+        && isValidFollowUp(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || isEmployeeOwner(incoming()));
+      allow update: if isValidId(followUpId)
+        && isValidFollowUp(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isEmployeeOwner(existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedAt', 'outcomeNotes', 'notes', 'scheduledAt', 'updatedAt']))
+        );
+      allow delete: if isValidId(followUpId) && isAdmin();
+    }
+
+    match /customer_documents/{docId} {
+      allow get: if isValidId(docId) && (isAdmin() || isEmployeeOwner(existing()));
+      allow list: if isAdmin() || isEmployeeOwner(resource.data);
+      allow create: if isValidId(docId)
+        && isValidCustomerDocument(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isEmployeeOwner(incoming()) && incoming().status == 'Pending')
+        );
+      allow update: if isValidId(docId)
+        && isValidCustomerDocument(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isEmployeeOwner(existing())
+            && existing().status in ['Rejected', 'Re-upload Required', 'Pending']
+            && incoming().status == 'Pending'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['fileName', 'mimeType', 'fileSize', 'hasFileBlob', 'previewSummary', 'status', 'rejectionReason', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(docId) && isAdmin();
+    }
+
+    match /document_files/{fileId} {
+      allow get: if isValidId(fileId) && (isAdmin() || isEmployeeOwner(existing()));
+      allow list: if isAdmin() || isEmployeeOwner(resource.data);
+      allow create: if isValidId(fileId)
+        && isValidDocumentFile(incoming())
+        && incoming().createdAt == request.time
+        && (isAdmin() || isEmployeeOwner(incoming()));
+      allow update: if isValidId(fileId)
+        && isValidDocumentFile(incoming())
+        && incoming().createdAt == existing().createdAt
+        && (isAdmin() || isEmployeeOwner(existing()));
+      allow delete: if isValidId(fileId) && isAdmin();
+    }
+
+    match /banks/{bankId} {
+      allow get: if isValidId(bankId) && isVerifiedUser();
+      allow list: if isVerifiedUser();
+      allow create: if isValidId(bankId) && isAdmin() && isValidBank(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(bankId) && isAdmin() && isValidBank(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(bankId) && isAdmin();
+    }
+
+    match /loan_schemes/{schemeId} {
+      allow get: if isValidId(schemeId) && isVerifiedUser();
+      allow list: if isVerifiedUser();
+      allow create: if isValidId(schemeId) && isAdmin() && isValidLoanScheme(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(schemeId) && isAdmin() && isValidLoanScheme(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(schemeId) && isAdmin();
+    }
+
+    match /loan_applications/{applicationId} {
+      allow get: if isValidId(applicationId) && (isAdmin() || isEmployeeOwner(existing()));
+      allow list: if isAdmin() || isEmployeeOwner(resource.data);
+      allow create: if isValidId(applicationId)
+        && isAdmin()
+        && isValidLoanApplication(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(applicationId)
+        && isValidLoanApplication(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isEmployeeOwner(existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['remarks', 'updatedAt']))
+        );
+      allow delete: if isValidId(applicationId) && isAdmin();
+    }
+
+    match /loan_status_history/{historyId} {
+      allow get: if isValidId(historyId) && (isAdmin() || isOwnerByEmail(existing().employeeEmail));
+      allow list: if isAdmin() || isOwnerByEmail(resource.data.employeeEmail);
+      allow create: if isValidId(historyId)
+        && isAdmin()
+        && isValidLoanStatusHistory(incoming())
+        && incoming().changedByUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(historyId) && isAdmin();
+    }
+
+    match /daily_targets/{targetId} {
+      allow get: if isValidId(targetId) && (isAdmin() || isOwnerByEmail(existing().employeeEmail));
+      allow list: if isAdmin() || isOwnerByEmail(resource.data.employeeEmail);
+      allow create: if isValidId(targetId)
+        && isAdmin()
+        && isValidDailyTarget(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(targetId)
+        && isAdmin()
+        && isValidDailyTarget(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(targetId) && isAdmin();
+    }
+
+    match /activity_logs/{activityId} {
+      allow get: if isValidId(activityId) && (isAdmin() || isOwnerByEmail(existing().actorEmail));
+      allow list: if isAdmin() || isOwnerByEmail(resource.data.actorEmail);
+      allow create: if isValidId(activityId)
+        && isValidActivityLog(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && (isAdmin() || (isVerifiedUser() && incoming().actorRole == 'staff'));
+      allow update, delete: if isValidId(activityId) && isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId) && isVerifiedUser();
+      allow list: if isVerifiedUser();
+      allow create: if isValidId(settingId) && isAdmin() && isValidCrmSettings(incoming()) && incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId) && isAdmin() && isValidCrmSettings(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    match /notifications/{notifId} {
+      allow get: if isValidId(notifId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().targetEmail == request.auth.token.email)
+      );
+      allow list: if isAdmin() || (
+        isVerifiedUser() && resource.data.targetEmail == request.auth.token.email
+      );
+      allow create: if isValidId(notifId)
+        && isValidNotification(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && (incoming().targetRole == 'admin' || incoming().targetEmail == request.auth.token.email))
+        );
+      allow update: if isValidId(notifId)
+        && isValidNotification(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isVerifiedUser()
+            && existing().targetEmail == request.auth.token.email
+            && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'readAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(notifId) && isAdmin();
+    }
+  }
+}

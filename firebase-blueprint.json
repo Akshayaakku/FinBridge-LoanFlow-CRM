@@ -1,0 +1,425 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated CRM user profile and role assignment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "fullName", "role", "status", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Call centre staff member or admin directory profile with daily call target.",
+      "type": "object",
+      "properties": {
+        "employeeCode": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "phone": { "type": "string", "minLength": 6, "maxLength": 32 },
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "department": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "joiningDate": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "dailyCallTarget": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeCode", "fullName", "email", "phone", "role", "department", "joiningDate", "status", "dailyCallTarget", "createdAt", "updatedAt"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Customer loan inquiry lead tracked through call centre pipeline.",
+      "type": "object",
+      "properties": {
+        "leadCode": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "phone": { "type": "string", "minLength": 6, "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 200 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "state": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "employmentType": { "type": "string", "enum": ["Salaried", "Self-Employed", "Business Owner", "Professional"] },
+        "monthlyIncome": { "type": "number" },
+        "requiredLoanAmount": { "type": "number" },
+        "loanType": { "type": "string", "enum": ["Home Loan", "Personal Loan", "Business Loan", "Auto Loan", "Education Loan", "Loan Against Property"] },
+        "preferredBank": { "type": "string", "maxLength": 120 },
+        "leadSource": { "type": "string", "maxLength": 80 },
+        "assignedEmployeeId": { "type": "string", "maxLength": 128 },
+        "assignedEmployeeName": { "type": "string", "maxLength": 150 },
+        "assignedEmployeeEmail": { "type": "string", "maxLength": 200 },
+        "assignedEmployeeUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["New", "Contacted", "Interested", "Not Interested", "Callback Requested", "Qualified", "Converted", "Lost"] },
+        "priority": { "type": "string", "enum": ["High", "Medium", "Low"] },
+        "remarks": { "type": "string", "maxLength": 2000 },
+        "leadScore": { "type": "number" },
+        "scoreTier": { "type": "string", "enum": ["Hot", "Warm", "Cold"] },
+        "scoreSummary": { "type": "string", "maxLength": 400 },
+        "scoreFactors": {
+          "type": "object",
+          "properties": {
+            "demographics": { "type": "number" },
+            "financialCapacity": { "type": "number" },
+            "sourceQuality": { "type": "number" },
+            "engagementHistory": { "type": "number" }
+          }
+        },
+        "scoredAt": { "type": "string", "maxLength": 64 },
+        "scoreModel": { "type": "string", "maxLength": 80 },
+        "isArchived": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leadCode", "customerName", "phone", "city", "state", "employmentType", "monthlyIncome", "requiredLoanAmount", "loanType", "leadSource", "status", "priority", "isArchived", "createdAt", "updatedAt"]
+    },
+    "LeadAssignment": {
+      "title": "LeadAssignment",
+      "description": "Audit log of lead assignment and reassignment events.",
+      "type": "object",
+      "properties": {
+        "leadId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "fromEmployeeId": { "type": "string", "maxLength": 128 },
+        "fromEmployeeName": { "type": "string", "maxLength": 150 },
+        "toEmployeeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "toEmployeeName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "toEmployeeEmail": { "type": "string", "maxLength": 200 },
+        "assignedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "assignedByName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "method": { "type": "string", "enum": ["manual", "bulk", "round_robin"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leadId", "leadCode", "customerName", "toEmployeeId", "toEmployeeName", "assignedByUid", "assignedByName", "method", "createdAt"]
+    },
+    "CallLog": {
+      "title": "CallLog",
+      "description": "Record of an outbound or inbound call with a customer lead.",
+      "type": "object",
+      "properties": {
+        "leadId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "customerPhone": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "employeeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "employeeEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "employeeUid": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "callTime": { "type": "string", "format": "date-time" },
+        "durationSeconds": { "type": "number" },
+        "status": { "type": "string", "enum": ["Connected", "Not Connected", "Busy", "No Answer", "Interested", "Not Interested", "Callback Requested", "Wrong Number"] },
+        "remarks": { "type": "string", "maxLength": 2000 },
+        "nextFollowUpDate": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leadId", "leadCode", "customerName", "customerPhone", "employeeId", "employeeEmail", "employeeName", "callTime", "durationSeconds", "status", "createdAt"]
+    },
+    "FollowUp": {
+      "title": "FollowUp",
+      "description": "Scheduled follow-up call task linked to a lead and employee.",
+      "type": "object",
+      "properties": {
+        "leadId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "customerPhone": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "employeeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "employeeEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "employeeUid": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["pending", "completed", "cancelled"] },
+        "completedAt": { "type": "string", "maxLength": 64 },
+        "outcomeNotes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leadId", "leadCode", "customerName", "customerPhone", "employeeId", "employeeEmail", "employeeName", "scheduledAt", "status", "createdAt", "updatedAt"]
+    },
+    "CustomerDocument": {
+      "title": "CustomerDocument",
+      "description": "KYC or financial document metadata and verification workflow status.",
+      "type": "object",
+      "properties": {
+        "leadId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "employeeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "employeeEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "employeeUid": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "docType": { "type": "string", "enum": ["Aadhaar Card", "PAN Card", "Bank Statement", "Salary Slip", "Employment Proof", "Address Proof", "Other Documents"] },
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "mimeType": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fileSize": { "type": "number" },
+        "hasFileBlob": { "type": "boolean" },
+        "previewSummary": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["Pending", "Verified", "Rejected", "Re-upload Required"] },
+        "rejectionReason": { "type": "string", "maxLength": 500 },
+        "verifiedByUid": { "type": "string", "maxLength": 128 },
+        "verifiedByName": { "type": "string", "maxLength": 150 },
+        "verifiedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leadId", "leadCode", "customerName", "employeeId", "employeeEmail", "employeeName", "docType", "fileName", "mimeType", "fileSize", "status", "createdAt", "updatedAt"]
+    },
+    "DocumentFile": {
+      "title": "DocumentFile",
+      "description": "Uploaded file payload for preview and authorized download.",
+      "type": "object",
+      "properties": {
+        "docId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "employeeEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "dataUrl": { "type": "string", "minLength": 1, "maxLength": 900000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["docId", "leadId", "employeeEmail", "dataUrl", "createdAt"]
+    },
+    "Bank": {
+      "title": "Bank",
+      "description": "Partner bank institution for loan processing.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "shortCode": { "type": "string", "minLength": 2, "maxLength": 16 },
+        "logoColor": { "type": "string", "minLength": 4, "maxLength": 24 },
+        "contactPerson": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "contactNumber": { "type": "string", "minLength": 5, "maxLength": 32 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "shortCode", "logoColor", "contactPerson", "contactNumber", "email", "status", "createdAt", "updatedAt"]
+    },
+    "LoanScheme": {
+      "title": "LoanScheme",
+      "description": "Loan product scheme offered by a banking partner.",
+      "type": "object",
+      "properties": {
+        "bankId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "bankName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "schemeName": { "type": "string", "minLength": 2, "maxLength": 180 },
+        "loanType": { "type": "string", "enum": ["Home Loan", "Personal Loan", "Business Loan", "Auto Loan", "Education Loan", "Loan Against Property"] },
+        "minAmount": { "type": "number" },
+        "maxAmount": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "minIncome": { "type": "number" },
+        "minCreditScore": { "type": "number" },
+        "processingFee": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "tenureMonths": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bankId", "bankName", "schemeName", "loanType", "minAmount", "maxAmount", "interestRate", "minIncome", "processingFee", "tenureMonths", "status", "createdAt", "updatedAt"]
+    },
+    "LoanApplication": {
+      "title": "LoanApplication",
+      "description": "Submitted customer loan application tracked across bank underwriting stages.",
+      "type": "object",
+      "properties": {
+        "applicationCode": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "leadId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "customerPhone": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "employeeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "employeeEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "employeeUid": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "bankId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "bankName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "schemeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "schemeName": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "loanType": { "type": "string", "maxLength": 80 },
+        "loanAmount": { "type": "number" },
+        "applicationDate": { "type": "string", "format": "date-time" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Lead Interested",
+            "Documents Pending",
+            "Documents Submitted",
+            "Under Bank Review",
+            "Additional Documents Required",
+            "Approved",
+            "Rejected",
+            "Disbursed",
+            "Closed"
+          ]
+        },
+        "bankReferenceNumber": { "type": "string", "maxLength": 80 },
+        "remarks": { "type": "string", "maxLength": 2000 },
+        "disbursedAmount": { "type": "number" },
+        "disbursedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["applicationCode", "leadId", "leadCode", "customerName", "customerPhone", "employeeId", "employeeEmail", "employeeName", "bankId", "bankName", "schemeId", "schemeName", "loanAmount", "applicationDate", "status", "createdAt", "updatedAt"]
+    },
+    "LoanStatusHistory": {
+      "title": "LoanStatusHistory",
+      "description": "Audit timeline of loan application stage transitions.",
+      "type": "object",
+      "properties": {
+        "applicationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "applicationCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "employeeEmail": { "type": "string", "maxLength": 200 },
+        "fromStatus": { "type": "string", "maxLength": 64 },
+        "toStatus": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "remarks": { "type": "string", "maxLength": 1000 },
+        "changedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "changedByName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["applicationId", "applicationCode", "toStatus", "changedByUid", "changedByName", "createdAt"]
+    },
+    "DailyTarget": {
+      "title": "DailyTarget",
+      "description": "Daily call target tracking record per employee.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "employeeEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "date": { "type": "string", "minLength": 8, "maxLength": 20 },
+        "callTarget": { "type": "number" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeId", "employeeEmail", "date", "callTarget", "updatedByUid", "createdAt", "updatedAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Operational activity stream entry for dashboard and audit logs.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "actorRole": { "type": "string", "enum": ["admin", "staff"] },
+        "action": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "entityType": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorName", "actorRole", "action", "entityType", "entityId", "summary", "createdAt"]
+    },
+    "CrmSettings": {
+      "title": "CrmSettings",
+      "description": "Global CRM settings such as duplicate detection policy and round-robin state.",
+      "type": "object",
+      "properties": {
+        "duplicateRule": { "type": "string", "enum": ["phone", "email", "phone_or_email", "none"] },
+        "defaultDailyCallTarget": { "type": "number" },
+        "roundRobinIndex": { "type": "number" },
+        "seeded": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["duplicateRule", "defaultDailyCallTarget", "roundRobinIndex", "seeded", "updatedAt"]
+    },
+    "CrmNotification": {
+      "title": "CrmNotification",
+      "description": "Real-time role-targeted CRM notification event persisted in Firestore.",
+      "type": "object",
+      "properties": {
+        "targetRole": { "type": "string", "enum": ["admin", "staff"] },
+        "targetEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "category": { "type": "string", "enum": ["lead_assigned", "lead_attention", "follow_up_upcoming", "doc_update", "application_update"] },
+        "severity": { "type": "string", "enum": ["info", "warning", "urgent", "success"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "entityType": { "type": "string", "enum": ["lead", "follow_up", "customer_document", "loan_application"] },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leadCode": { "type": "string", "maxLength": 32 },
+        "read": { "type": "boolean" },
+        "readAt": { "type": "string", "maxLength": 64 },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["targetRole", "targetEmail", "category", "severity", "title", "message", "entityType", "entityId", "read", "actorName", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "User authentication profiles and roles."
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Employee directory, targets, and status."
+    },
+    "/leads/{leadId}": {
+      "schema": { "$ref": "#/entities/Lead" },
+      "description": "Customer leads managed by admin and assigned staff."
+    },
+    "/lead_assignments/{assignmentId}": {
+      "schema": { "$ref": "#/entities/LeadAssignment" },
+      "description": "Lead assignment and reassignment history."
+    },
+    "/call_logs/{callId}": {
+      "schema": { "$ref": "#/entities/CallLog" },
+      "description": "Customer call logs recorded by employees."
+    },
+    "/follow_ups/{followUpId}": {
+      "schema": { "$ref": "#/entities/FollowUp" },
+      "description": "Scheduled follow-up calls."
+    },
+    "/customer_documents/{docId}": {
+      "schema": { "$ref": "#/entities/CustomerDocument" },
+      "description": "Customer document metadata and verification status."
+    },
+    "/document_files/{fileId}": {
+      "schema": { "$ref": "#/entities/DocumentFile" },
+      "description": "Uploaded document payloads for authorized preview/download."
+    },
+    "/banks/{bankId}": {
+      "schema": { "$ref": "#/entities/Bank" },
+      "description": "Partner banks."
+    },
+    "/loan_schemes/{schemeId}": {
+      "schema": { "$ref": "#/entities/LoanScheme" },
+      "description": "Bank loan schemes and eligibility parameters."
+    },
+    "/loan_applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/LoanApplication" },
+      "description": "Loan applications and disbursement tracking."
+    },
+    "/loan_status_history/{historyId}": {
+      "schema": { "$ref": "#/entities/LoanStatusHistory" },
+      "description": "Loan application status transition history."
+    },
+    "/daily_targets/{targetId}": {
+      "schema": { "$ref": "#/entities/DailyTarget" },
+      "description": "Per-employee daily call target records."
+    },
+    "/activity_logs/{activityId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "System-wide CRM activity timeline."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/CrmSettings" },
+      "description": "Global CRM settings and seed marker."
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/CrmNotification" },
+      "description": "Real-time notifications scoped by role and staff email."
+    }
+  }
+}
