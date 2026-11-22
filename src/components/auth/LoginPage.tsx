@@ -3,14 +3,11 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Eye,
   EyeOff,
   KeyRound,
   Lock,
   Mail,
-  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -41,7 +38,6 @@ export function LoginPage() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(true);
 
   const [resetEmail, setResetEmail] = useState('');
   const [resetError, setResetError] = useState<string | null>(null);
@@ -52,9 +48,7 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     getValues,
-    setFocus,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema) as never,
@@ -111,13 +105,6 @@ export function LoginPage() {
     } finally {
       setResetBusy(false);
     }
-  };
-
-  const fillDemoEmail = (demoEmail: string) => {
-    clearAuthError();
-    setValue('email', demoEmail, { shouldValidate: true });
-    if (mode !== 'login') setMode('login');
-    setTimeout(() => setFocus('password'), 50);
   };
 
   const currentYear = new Date().getFullYear();
@@ -453,55 +440,6 @@ export function LoginPage() {
                   </button>
                 </div>
               </form>
-            )}
-          </div>
-
-          {/* Evaluator & Demo Access Guide */}
-          <div className="bg-white/80 border border-slate-200/85 rounded-xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setDemoOpen((o) => !o)}
-              className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-            >
-              <span className="inline-flex items-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>Interview Evaluator &amp; Demo Access</span>
-              </span>
-              {demoOpen ? (
-                <ChevronUp className="w-4 h-4 text-slate-500" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-slate-500" />
-              )}
-            </button>
-
-            {demoOpen && (
-              <div className="px-4 pb-3.5 pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-2.5">
-                <p className="leading-relaxed">
-                  <strong className="text-slate-800">Google OAuth (Recommended):</strong>{' '}
-                  <span className="font-mono text-[11px] text-slate-700">b03328764@gmail.com</span> grants Admin Console access (with built-in Staff Portal switcher). Any other verified Google account opens the scoped Staff Portal.
-                </p>
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                  <span className="text-[11px] text-slate-500">
-                    Email/Password quick-fill (if enabled in Firebase Auth):
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => fillDemoEmail('admin@loancrm.com')}
-                      className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700 transition-colors"
-                    >
-                      Fill Admin Email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fillDemoEmail('staff@loancrm.com')}
-                      className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700 transition-colors"
-                    >
-                      Fill Staff Email
-                    </button>
-                  </div>
-                </div>
-              </div>
             )}
           </div>
         </div>
